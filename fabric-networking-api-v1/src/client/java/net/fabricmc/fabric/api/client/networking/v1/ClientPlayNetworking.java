@@ -1,6 +1,5 @@
 /*
- * Copyright 2016, 2017, 2018, 2019 FabricMC
- * Copyright 2022 The Quilt Project
+ * Copyright (c) 2016, 2017, 2018, 2019 FabricMC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +20,6 @@ import java.util.Objects;
 import java.util.Set;
 
 import org.jetbrains.annotations.Nullable;
-import org.quiltmc.qsl.networking.impl.client.ClientNetworkingImpl;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
@@ -36,7 +34,8 @@ import net.fabricmc.fabric.api.networking.v1.FabricPacket;
 import net.fabricmc.fabric.api.networking.v1.PacketSender;
 import net.fabricmc.fabric.api.networking.v1.PacketType;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.fabricmc.fabric.impl.networking.QuiltPacketSender;
+import net.fabricmc.fabric.impl.networking.client.ClientNetworkingImpl;
+import net.fabricmc.fabric.impl.networking.client.ClientPlayNetworkAddon;
 
 /**
  * Offers access to play stage client-side networking functionalities.
@@ -52,9 +51,7 @@ import net.fabricmc.fabric.impl.networking.QuiltPacketSender;
  * @see ClientLoginNetworking
  * @see ClientConfigurationNetworking
  * @see ServerPlayNetworking
- * @deprecated Use Quilt Networking's {@link org.quiltmc.qsl.networking.api.client.ClientPlayNetworking} instead.
  */
-@Deprecated
 public final class ClientPlayNetworking {
 	/**
 	 * Registers a handler to a channel.
@@ -76,7 +73,7 @@ public final class ClientPlayNetworking {
 	 * @see ClientPlayNetworking#registerReceiver(Identifier, PlayChannelHandler)
 	 */
 	public static boolean registerGlobalReceiver(Identifier channelName, PlayChannelHandler channelHandler) {
-		return org.quiltmc.qsl.networking.api.client.ClientPlayNetworking.registerGlobalReceiver(channelName, channelHandler);
+		return ClientNetworkingImpl.PLAY.registerGlobalReceiver(channelName, channelHandler);
 	}
 
 	/**
@@ -131,15 +128,7 @@ public final class ClientPlayNetworking {
 	 */
 	@Nullable
 	public static PlayChannelHandler unregisterGlobalReceiver(Identifier channelName) {
-		var old = org.quiltmc.qsl.networking.api.client.ClientPlayNetworking.unregisterGlobalReceiver(channelName);
-
-		if (old instanceof PlayChannelHandler fabric) {
-			return fabric;
-		} else if (old != null) {
-			return old::receive;
-		} else {
-			return null;
-		}
+		return ClientNetworkingImpl.PLAY.unregisterGlobalReceiver(channelName);
 	}
 
 	/**
@@ -157,7 +146,7 @@ public final class ClientPlayNetworking {
 	@Nullable
 	@SuppressWarnings("unchecked")
 	public static <T extends FabricPacket> PlayPacketHandler<T> unregisterGlobalReceiver(PacketType<T> type) {
-		PlayChannelHandler handler = (PlayChannelHandler) ClientNetworkingImpl.PLAY.unregisterGlobalReceiver(type.getId());
+		PlayChannelHandler handler = ClientNetworkingImpl.PLAY.unregisterGlobalReceiver(type.getId());
 		return handler instanceof PlayChannelHandlerProxy<?> proxy ? (PlayPacketHandler<T>) proxy.getOriginalHandler() : null;
 	}
 
@@ -168,7 +157,7 @@ public final class ClientPlayNetworking {
 	 * @return all channel names which global receivers are registered for.
 	 */
 	public static Set<Identifier> getGlobalReceivers() {
-		return org.quiltmc.qsl.networking.api.client.ClientPlayNetworking.getGlobalReceivers();
+		return ClientNetworkingImpl.PLAY.getChannels();
 	}
 
 	/**
@@ -189,7 +178,13 @@ public final class ClientPlayNetworking {
 	 * @see ClientPlayConnectionEvents#INIT
 	 */
 	public static boolean registerReceiver(Identifier channelName, PlayChannelHandler channelHandler) {
-		return org.quiltmc.qsl.networking.api.client.ClientPlayNetworking.registerReceiver(channelName, channelHandler);
+		final ClientPlayNetworkAddon addon = ClientNetworkingImpl.getClientPlayAddon();
+
+		if (addon != null) {
+			return addon.registerChannel(channelName, channelHandler);
+		}
+
+		throw new IllegalStateException("Cannot register receiver while not in game!");
 	}
 
 	/**
@@ -244,15 +239,13 @@ public final class ClientPlayNetworking {
 	 */
 	@Nullable
 	public static PlayChannelHandler unregisterReceiver(Identifier channelName) throws IllegalStateException {
-		var old = org.quiltmc.qsl.networking.api.client.ClientPlayNetworking.unregisterReceiver(channelName);
+		final ClientPlayNetworkAddon addon = ClientNetworkingImpl.getClientPlayAddon();
 
-		if (old instanceof PlayChannelHandler fabric) {
-			return fabric;
-		} else if (old != null) {
-			return old::receive;
-		} else {
-			return null;
+		if (addon != null) {
+			return addon.unregisterChannel(channelName);
 		}
+
+		throw new IllegalStateException("Cannot unregister receiver while not in game!");
 	}
 
 	/**
@@ -279,7 +272,13 @@ public final class ClientPlayNetworking {
 	 * @throws IllegalStateException if the client is not connected to a server
 	 */
 	public static Set<Identifier> getReceived() throws IllegalStateException {
-		return org.quiltmc.qsl.networking.api.client.ClientPlayNetworking.getReceived();
+		final ClientPlayNetworkAddon addon = ClientNetworkingImpl.getClientPlayAddon();
+
+		if (addon != null) {
+			return addon.getReceivableChannels();
+		}
+
+		throw new IllegalStateException("Cannot get a list of channels the client can receive packets on while not in game!");
 	}
 
 	/**
@@ -289,7 +288,13 @@ public final class ClientPlayNetworking {
 	 * @throws IllegalStateException if the client is not connected to a server
 	 */
 	public static Set<Identifier> getSendable() throws IllegalStateException {
-		return org.quiltmc.qsl.networking.api.client.ClientPlayNetworking.getSendable();
+		final ClientPlayNetworkAddon addon = ClientNetworkingImpl.getClientPlayAddon();
+
+		if (addon != null) {
+			return addon.getSendableChannels();
+		}
+
+		throw new IllegalStateException("Cannot get a list of channels the server can receive packets on while not in game!");
 	}
 
 	/**
@@ -300,7 +305,12 @@ public final class ClientPlayNetworking {
 	 * False if the client is not in game.
 	 */
 	public static boolean canSend(Identifier channelName) throws IllegalArgumentException {
-		return org.quiltmc.qsl.networking.api.client.ClientPlayNetworking.canSend(channelName);
+		// You cant send without a client player, so this is fine
+		if (MinecraftClient.getInstance().getNetworkHandler() != null) {
+			return ClientNetworkingImpl.getAddon(MinecraftClient.getInstance().getNetworkHandler()).getSendableChannels().contains(channelName);
+		}
+
+		return false;
 	}
 
 	/**
@@ -336,8 +346,6 @@ public final class ClientPlayNetworking {
 	 */
 	public static <T extends FabricPacket> Packet<ServerCommonPacketListener> createC2SPacket(T packet) {
 		return ClientNetworkingImpl.createC2SPacket(packet);
-	public static Packet<ServerPlayPacketListener> createC2SPacket(Identifier channelName, PacketByteBuf buf) {
-		return org.quiltmc.qsl.networking.api.client.ClientPlayNetworking.createC2SPacket(channelName, buf);
 	}
 
 	/**
@@ -347,7 +355,12 @@ public final class ClientPlayNetworking {
 	 * @throws IllegalStateException if the client is not connected to a server
 	 */
 	public static PacketSender getSender() throws IllegalStateException {
-		return new QuiltPacketSender(org.quiltmc.qsl.networking.api.client.ClientPlayNetworking.getSender());
+		// You cant send without a client player, so this is fine
+		if (MinecraftClient.getInstance().getNetworkHandler() != null) {
+			return ClientNetworkingImpl.getAddon(MinecraftClient.getInstance().getNetworkHandler());
+		}
+
+		throw new IllegalStateException("Cannot get packet sender when not in game!");
 	}
 
 	/**
@@ -358,7 +371,13 @@ public final class ClientPlayNetworking {
 	 * @throws IllegalStateException if the client is not connected to a server
 	 */
 	public static void send(Identifier channelName, PacketByteBuf buf) throws IllegalStateException {
-		org.quiltmc.qsl.networking.api.client.ClientPlayNetworking.send(channelName, buf);
+		// You cant send without a client player, so this is fine
+		if (MinecraftClient.getInstance().getNetworkHandler() != null) {
+			MinecraftClient.getInstance().getNetworkHandler().sendPacket(createC2SPacket(channelName, buf));
+			return;
+		}
+
+		throw new IllegalStateException("Cannot send packets when not in game!");
 	}
 
 	/**
@@ -383,14 +402,8 @@ public final class ClientPlayNetworking {
 	private ClientPlayNetworking() {
 	}
 
-	@Deprecated
 	@FunctionalInterface
-	public interface PlayChannelHandler extends org.quiltmc.qsl.networking.api.client.ClientPlayNetworking.ChannelReceiver {
-		@Override
-		default void receive(MinecraftClient client, ClientPlayNetworkHandler handler, PacketByteBuf buf, org.quiltmc.qsl.networking.api.PacketSender responseSender) {
-			this.receive(client, handler, buf, new QuiltPacketSender(responseSender));
-		}
-
+	public interface PlayChannelHandler {
 		/**
 		 * Handles an incoming packet.
 		 *

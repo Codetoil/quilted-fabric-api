@@ -21,8 +21,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import net.minecraft.network.packet.c2s.common.CustomPayloadC2SPacket;
 import net.minecraft.network.packet.c2s.common.CommonPongC2SPacket;
+import net.minecraft.network.packet.c2s.common.CustomPayloadC2SPacket;
 import net.minecraft.server.network.ServerCommonNetworkHandler;
 
 import net.fabricmc.fabric.impl.networking.NetworkHandlerExtensions;
@@ -30,7 +30,7 @@ import net.fabricmc.fabric.impl.networking.payload.PacketByteBufPayload;
 import net.fabricmc.fabric.impl.networking.server.ServerConfigurationNetworkAddon;
 import net.fabricmc.fabric.impl.networking.server.ServerPlayNetworkAddon;
 
-@Mixin(ServerCommonNetworkHandler.class)
+@Mixin(ServerCommonNetworkHandler.class, priority = 250)
 public abstract class ServerCommonNetworkHandlerMixin implements NetworkHandlerExtensions {
 	@Inject(method = "onCustomPayload", at = @At("HEAD"), cancellable = true)
 	private void handleCustomPayloadReceivedAsync(CustomPayloadC2SPacket packet, CallbackInfo ci) {
@@ -45,11 +45,7 @@ public abstract class ServerCommonNetworkHandlerMixin implements NetworkHandlerE
 				throw new IllegalStateException("Unknown addon");
 			}
 
-			if (handled) {
-				ci.cancel();
-			} else {
-				payload.data().skipBytes(payload.data().readableBytes());
-			}
+			// Falls through to the QSL injection
 		}
 	}
 

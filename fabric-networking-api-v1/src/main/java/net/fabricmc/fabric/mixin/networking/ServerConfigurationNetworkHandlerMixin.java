@@ -84,6 +84,7 @@ public abstract class ServerConfigurationNetworkHandlerMixin extends ServerCommo
 
 	@Inject(method = "sendConfigurations", at = @At("HEAD"), cancellable = true)
 	private void onClientReady(CallbackInfo ci) {
+		throw new AssertionError();
 		// Send the initial channel registration packet
 		if (this.addon.startConfiguration()) {
 			assert currentTask == null;

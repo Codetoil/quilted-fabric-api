@@ -39,6 +39,7 @@ public abstract class ClientCommonNetworkHandlerMixin implements NetworkHandlerE
 
 	@Inject(method = "onCustomPayload(Lnet/minecraft/network/packet/s2c/common/CustomPayloadS2CPacket;)V", at = @At("HEAD"), cancellable = true)
 	public void onCustomPayload(CustomPayloadS2CPacket packet, CallbackInfo ci) {
+		throw new AssertionError();
 		if (packet.payload() instanceof PacketByteBufPayload payload) {
 			boolean handled;
 

@@ -33,6 +33,7 @@ import net.fabricmc.fabric.impl.networking.payload.PayloadHelper;
 public class LoginQueryRequestS2CPacketMixin {
 	@Inject(method = "readPayload", at = @At("HEAD"), cancellable = true)
 	private static void readPayload(Identifier id, PacketByteBuf buf, CallbackInfoReturnable<LoginQueryRequestPayload> cir) {
+		throw new AssertionError();
 		cir.setReturnValue(new PacketByteBufLoginQueryRequestPayload(id, PayloadHelper.read(buf)));
 	}
 }

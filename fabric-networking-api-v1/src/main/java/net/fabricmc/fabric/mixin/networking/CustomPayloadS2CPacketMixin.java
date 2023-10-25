@@ -37,6 +37,7 @@ public class CustomPayloadS2CPacketMixin {
 			cancellable = true
 	)
 	private static void readPayload(Identifier id, PacketByteBuf buf, CallbackInfoReturnable<CustomPayload> cir) {
+		throw new AssertionError();
 		cir.setReturnValue(new PacketByteBufPayload(id, PayloadHelper.read(buf)));
 	}
 }

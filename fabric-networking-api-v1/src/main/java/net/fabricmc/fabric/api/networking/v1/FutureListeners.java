@@ -1,6 +1,5 @@
 /*
- * Copyright 2016, 2017, 2018, 2019 FabricMC
- * Copyright 2022 The Quilt Project
+ * Copyright (c) 2016, 2017, 2018, 2019 FabricMC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +16,12 @@
 
 package net.fabricmc.fabric.api.networking.v1;
 
+import java.util.Objects;
+
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.local.LocalChannel;
+import io.netty.channel.local.LocalServerChannel;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.FutureListener;
 import io.netty.util.concurrent.GenericFutureListener;
@@ -27,12 +30,9 @@ import net.minecraft.network.PacketByteBuf;
 
 /**
  * Utilities for working with netty's future listeners.
- *
  * @see FutureListener
  * @see ChannelFutureListener
- * @deprecated Use Quilt Networking's {@link org.quiltmc.qsl.networking.api.FutureListeners} instead.
  */
-@Deprecated
 public final class FutureListeners {
 	/**
 	 * Returns a future listener that releases a packet byte buf when the buffer has been sent to a remote connection.
@@ -41,7 +41,13 @@ public final class FutureListeners {
 	 * @return the future listener
 	 */
 	public static ChannelFutureListener free(PacketByteBuf buf) {
-		return org.quiltmc.qsl.networking.api.FutureListeners.free(buf);
+		Objects.requireNonNull(buf, "PacketByteBuf cannot be null");
+
+		return (future) -> {
+			if (!isLocalChannel(future.channel())) {
+				buf.release();
+			}
+		};
 	}
 
 	/**
@@ -51,7 +57,7 @@ public final class FutureListeners {
 	 * @return whether the channel is local
 	 */
 	public static boolean isLocalChannel(Channel channel) {
-		return org.quiltmc.qsl.networking.api.FutureListeners.isLocalChannel(channel);
+		return channel instanceof LocalServerChannel || channel instanceof LocalChannel;
 	}
 
 	/**
@@ -59,14 +65,30 @@ public final class FutureListeners {
 	 *
 	 * @param first  the first future listener
 	 * @param second the second future listener
-	 * @param <A>    the future type of the first listener, used for casting
-	 * @param <B>    the future type of the second listener, used for casting
+	 * @param <A> the future type of the first listener, used for casting
+	 * @param <B> the future type of the second listener, used for casting
 	 * @return the combined future listener.
 	 */
 	// A, B exist just to allow casting
 	@SuppressWarnings("unchecked")
 	public static <A extends Future<? super Void>, B extends Future<? super Void>> GenericFutureListener<? extends Future<? super Void>> union(GenericFutureListener<A> first, GenericFutureListener<B> second) {
-		return org.quiltmc.qsl.networking.api.FutureListeners.union(first, second);
+		// Return an empty future listener in the case of both parameters somehow being null
+		if (first == null && second == null) {
+			return future -> { };
+		}
+
+		if (first == null) {
+			return second;
+		}
+
+		if (second == null) {
+			return first;
+		}
+
+		return future -> {
+			first.operationComplete((A) future);
+			second.operationComplete((B) future);
+		};
 	}
 
 	private FutureListeners() {
